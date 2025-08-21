@@ -1,0 +1,42 @@
+{
+  "players": [
+    {
+      "id": "5f619582-aefb-4d4c-b2b6-560faecb17f7",
+      "name": "Thomas",
+      "createdAt": "2025-08-21T08:57:13.752Z"
+    },
+    {
+      "id": "f0ff5ac1-034c-4b79-ae1e-8d8ad2d1e93c",
+      "name": "Majid",
+      "createdAt": "2025-08-21T08:57:20.285Z"
+    },
+    {
+      "id": "6d7db80f-511a-4cef-b9af-d4c3af44140b",
+      "name": "Tito",
+      "createdAt": "2025-08-21T08:57:23.675Z"
+    }
+  ],
+  "games": [
+    {
+      "id": "7cf2fc8b-169e-411d-8535-e29f840d45bc",
+      "players": [
+        {
+          "playerId": "5f619582-aefb-4d4c-b2b6-560faecb17f7",
+          "wonderName": "babylon",
+          "score": 55
+        },
+        {
+          "playerId": "f0ff5ac1-034c-4b79-ae1e-8d8ad2d1e93c",
+          "wonderName": "halicarnassus",
+          "score": 44
+        },
+        {
+          "playerId": "6d7db80f-511a-4cef-b9af-d4c3af44140b",
+          "wonderName": "olympia",
+          "score": 33
+        }
+      ],
+      "createdAt": "2025-08-21T08:57:49.899Z"
+    }
+  ]
+}
