@@ -1,10 +1,9 @@
 import { Router, Request, Response } from "express";
-import { v4 as uuidv4 } from "uuid";
-import { db } from "../services/database";
+import { supabaseDb } from "../services/supabaseDatabase";
 import { statsService } from "../services/statsService";
 import { createPlayerSchema, createGameSchema } from "../validation/schema";
 import { WONDERS } from "../data/wonders";
-import { Player, Game, CreatePlayerRequest, CreateGameRequest } from "../types";
+import { CreatePlayerRequest, CreateGameRequest } from "../types";
 
 const router = Router();
 
@@ -19,74 +18,74 @@ router.get("/wonders", (req: Request, res: Response) => {
 });
 
 // Player routes
-router.get("/players", (req: Request, res: Response) => {
-  const players = db.getAllPlayers();
-  res.json(players);
+router.get("/players", async (req: Request, res: Response) => {
+  try {
+    const players = await supabaseDb.getAllPlayers();
+    res.json(players);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to fetch players" });
+  }
 });
 
-router.post("/players", (req: Request, res: Response) => {
+router.post("/players", async (req: Request, res: Response) => {
   try {
     const validatedData = createPlayerSchema.parse(
       req.body
     ) as CreatePlayerRequest;
 
     // Check if player name already exists
-    const existingPlayer = db
-      .getAllPlayers()
-      .find((p) => p.name.toLowerCase() === validatedData.name.toLowerCase());
+    const existingPlayers = await supabaseDb.getAllPlayers();
+    const existingPlayer = existingPlayers.find(
+      (p) => p.name.toLowerCase() === validatedData.name.toLowerCase()
+    );
 
     if (existingPlayer) {
       return res.status(400).json({ error: "Player name already exists" });
     }
 
-    const player: Player = {
-      id: uuidv4(),
+    const createdPlayer = await supabaseDb.createPlayer({
       name: validatedData.name,
-      createdAt: new Date(),
-    };
-
-    const createdPlayer = db.createPlayer(player);
+    });
     res.status(201).json(createdPlayer);
   } catch (error: any) {
     res.status(400).json({ error: error.message || "Invalid input" });
   }
 });
 
-router.delete("/players/:id", (req: Request, res: Response) => {
-  const { id } = req.params;
+router.delete("/players/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
 
-  // Check if player exists in any games
-  const games = db.getAllGames();
-  const playerInGames = games.some((game) =>
-    game.players.some((p) => p.playerId === id)
-  );
+    const deleted = await supabaseDb.deletePlayer(id);
+    if (!deleted) {
+      return res.status(404).json({ error: "Player not found" });
+    }
 
-  if (playerInGames) {
-    return res.status(400).json({
-      error: "Cannot delete player who has played games. Delete games first.",
-    });
+    res.status(204).send();
+  } catch (error: any) {
+    if (error.message === "Cannot delete player who has played games. Delete games first.") {
+      return res.status(400).json({ error: error.message });
+    }
+    res.status(500).json({ error: "Failed to delete player" });
   }
-
-  const deleted = db.deletePlayer(id);
-  if (!deleted) {
-    return res.status(404).json({ error: "Player not found" });
-  }
-
-  res.status(204).send();
 });
 
 // Game routes
-router.get("/games", (req: Request, res: Response) => {
-  const games = db.getAllGames();
-  res.json(games);
+router.get("/games", async (req: Request, res: Response) => {
+  try {
+    const games = await supabaseDb.getAllGames();
+    res.json(games);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to fetch games" });
+  }
 });
 
-router.post("/games", (req: Request, res: Response) => {
+router.post("/games", async (req: Request, res: Response) => {
   try {
     const validatedData = createGameSchema.parse(req.body) as CreateGameRequest;
 
     // Validate that all player IDs exist
-    const players = db.getAllPlayers();
+    const players = await supabaseDb.getAllPlayers();
     const playerIds = players.map((p) => p.id);
 
     for (const gamePlayer of validatedData.players) {
@@ -97,44 +96,60 @@ router.post("/games", (req: Request, res: Response) => {
       }
     }
 
-    const game: Game = {
-      id: uuidv4(),
-      players: validatedData.players,
-      createdAt: new Date(),
-    };
-
-    const createdGame = db.createGame(game);
+    const createdGame = await supabaseDb.createGame({
+      players: validatedData.players.map(p => ({
+        player_id: p.playerId,
+        wonder_name: p.wonderName,
+        score: p.score
+      }))
+    });
     res.status(201).json(createdGame);
   } catch (error: any) {
     res.status(400).json({ error: error.message || "Invalid input" });
   }
 });
 
-router.delete("/games/:id", (req: Request, res: Response) => {
-  const { id } = req.params;
+router.delete("/games/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
 
-  const deleted = db.deleteGame(id);
-  if (!deleted) {
-    return res.status(404).json({ error: "Game not found" });
+    const deleted = await supabaseDb.deleteGame(id);
+    if (!deleted) {
+      return res.status(404).json({ error: "Game not found" });
+    }
+
+    res.status(204).send();
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to delete game" });
   }
-
-  res.status(204).send();
 });
 
 // Stats routes
-router.get("/stats/players", (req: Request, res: Response) => {
-  const stats = statsService.calculatePlayerStats();
-  res.json(stats);
+router.get("/stats/players", async (req: Request, res: Response) => {
+  try {
+    const stats = await statsService.calculatePlayerStats();
+    res.json(stats);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to calculate player stats" });
+  }
 });
 
-router.get("/stats/wonders", (req: Request, res: Response) => {
-  const stats = statsService.calculateWonderStats();
-  res.json(stats);
+router.get("/stats/wonders", async (req: Request, res: Response) => {
+  try {
+    const stats = await statsService.calculateWonderStats();
+    res.json(stats);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to calculate wonder stats" });
+  }
 });
 
-router.get("/games/history", (req: Request, res: Response) => {
-  const history = statsService.getGameHistory();
-  res.json(history);
+router.get("/games/history", async (req: Request, res: Response) => {
+  try {
+    const history = await statsService.getGameHistory();
+    res.json(history);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to get game history" });
+  }
 });
 
 export default router;
